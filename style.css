@@ -166,7 +166,7 @@ video {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2sease;
+    transition: all 0.2s ease;
 }
 
 .control-btn:active {
