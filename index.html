@@ -1,61 +1,69 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemini Live API Tester</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pulse AI</title>
+    <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
-    <!-- Google Fonts for premium feel -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Material Icons for Buttons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 </head>
+
 <body>
-    <div class="app-container">
-        <header>
-            <h1>Gemini Live <span class="badge">TESTER</span></h1>
-            <p class="status" id="connectionStatus">Disconnected</p>
-        </header>
 
-        <main>
-            <div class="media-container">
-                <div class="video-wrapper">
-                    <video id="localVideo" autoplay playsinline muted></video>
-                    <div class="visualizer-overlay">
-                        <canvas id="audioVisualizer"></canvas>
-                    </div>
-                </div>
-                
-                <div class="controls">
-                    <button id="connectBtn" class="btn primary">
-                        <span class="icon">⚡</span> Connect
-                    </button>
-                    <button id="disconnectBtn" class="btn danger" disabled>
-                        <span class="icon">✕</span> Stop
-                    </button>
-                </div>
-                
-                <div class="media-toggles">
-                    <label class="toggle">
-                        <input type="checkbox" id="cameraToggle" checked>
-                        <span class="slider"></span>
-                        <span class="label">Camera</span>
-                    </label>
-                    <label class="toggle">
-                        <input type="checkbox" id="micToggle" checked>
-                        <span class="slider"></span>
-                        <span class="label">Mic</span>
-                    </label>
-                </div>
-            </div>
+    <!-- Main Content Area -->
+    <main class="app-container">
 
-            <div class="logs-container">
-                <h3>Session Logs</h3>
-                <div id="logs" class="logs"></div>
+        <!-- Theme Toggle -->
+        <button id="theme-toggle" class="icon-btn theme-btn">
+            <span class="material-icons-round">dark_mode</span>
+        </button>
+
+        <!-- Main Visualizer (The AI Persona) -->
+        <div class="visualizer-container">
+            <canvas id="audio-canvas"></canvas>
+            <div class="status-pill" id="connection-status">
+                <span class="status-dot"></span>
+                <span class="status-text">Ready</span>
             </div>
-        </main>
-    </div>
+        </div>
+
+        <!-- User Video (Floating PiP) -->
+        <div class="user-video-container">
+            <video id="local-video" autoplay playsinline muted></video>
+        </div>
+
+        <!-- Floating Controls Bar -->
+        <div class="controls-bar">
+            <!-- Cam Toggle -->
+            <button id="camera-toggle" class="control-btn active">
+                <span class="material-icons-round">videocam</span>
+            </button>
+
+            <!-- Connect/Disconnect (Call Action) -->
+            <button id="connect-btn" class="control-btn call-btn">
+                <span class="material-icons-round">call</span>
+            </button>
+
+            <button id="disconnect-btn" class="control-btn hangup-btn" disabled>
+                <span class="material-icons-round">call_end</span>
+            </button>
+
+            <!-- Mic Toggle -->
+            <button id="mic-toggle" class="control-btn active">
+                <span class="material-icons-round">mic</span>
+            </button>
+        </div>
+
+    </main>
 
     <script src="script.js"></script>
 </body>
+
 </html>

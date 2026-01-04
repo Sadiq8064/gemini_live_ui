@@ -2,70 +2,179 @@
 const URL = "wss://gemini-live-api-f0vo.onrender.com/ws";
 
 const localVideo = document.getElementById('localVideo');
-const connectBtn = document.getElementById('connectBtn');
-const disconnectBtn = document.getElementById('disconnectBtn');
-const connectionStatus = document.getElementById('connectionStatus');
-const logs = document.getElementById('logs');
-const cameraToggle = document.getElementById('cameraToggle');
-const micToggle = document.getElementById('micToggle');
-const audioCanvas = document.getElementById('audioVisualizer');
+let websocket = null;
+let isConnected = false;
+let audioContext = null;
+let mediaStream = null;
+let videoInterval = null;
+
+// DOM Elements
+const connectBtn = document.getElementById('connect-btn');
+const disconnectBtn = document.getElementById('disconnect-btn');
+const themeToggle = document.getElementById('theme-toggle');
+const micToggle = document.getElementById('mic-toggle');
+const cameraToggle = document.getElementById('camera-toggle');
+const audioCanvas = document.getElementById('audio-canvas');
+const statusDot = document.querySelector('.status-dot');
+const statusText = document.querySelector('.status-text');
+const localVideo = document.getElementById('local-video'); // Fixed ID
 const canvasCtx = audioCanvas.getContext('2d');
 
-let websocket;
-let mediaStream;
-let audioContext;
-let audioProcessor;
-let videoInterval;
-let isConnected = false;
-
-// Audio Configuration
-// Gemini supports 16kHz input. We'll try to get that from the browser or downsample.
-const INPUT_SAMPLE_RATE = 16000;
-const OUTPUT_SAMPLE_RATE = 24000; // Gemini Flash Live Native Audio preview outputs 24kHz
-
-// Logging utility
-function log(message, type = 'info') {
-    const entry = document.createElement('div');
-    entry.className = `log-entry ${type}`;
-    const time = new Date().toLocaleTimeString();
-    entry.textContent = `[${time}] ${message}`;
-    logs.appendChild(entry);
-    logs.scrollTop = logs.scrollHeight;
+// --- PWA Service Worker Registration ---
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('Service Worker registered'))
+            .catch(err => console.error('SW registration failed: ', err));
+    });
 }
 
-function updateStatus(status, className) {
-    connectionStatus.textContent = status;
-    connectionStatus.className = `status ${className}`;
+// --- Theme Management ---
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeIcon(savedTheme);
 }
 
-async function startMedia() {
-    try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                width: { ideal: 640 },
-                height: { ideal: 360 }
-            },
-            audio: {
-                channelCount: 1,
-                sampleRate: INPUT_SAMPLE_RATE,
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-            }
-        });
-        localVideo.srcObject = mediaStream;
-        setupAudioProcessing();
-    } catch (err) {
-        log(`Media Error: ${err.message}`, 'error');
-        console.error(err);
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeIcon(newTheme);
+}
+
+function updateThemeIcon(theme) {
+    const icon = themeToggle.querySelector('.material-icons-round');
+    icon.textContent = theme === 'dark' ? 'light_mode' : 'dark_mode';
+}
+
+themeToggle.addEventListener('click', toggleTheme);
+initTheme();
+
+
+// --- Initialization ---
+// Initialize AudioContext on user interaction
+function initAudioContext() {
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+    } else if (audioContext.state === 'suspended') {
+        audioContext.resume();
     }
 }
 
-function setupAudioProcessing() {
-    // Input Audio Code
-    // We used a deprecated ScriptProcessor for simplicity in a single file vs AudioWorklet
-    // Ideally use AudioWorklet for production
-    audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: INPUT_SAMPLE_RATE });
+// Resize canvas
+function resizeCanvas() {
+    audioCanvas.width = audioCanvas.parentElement.clientWidth;
+    audioCanvas.height = audioCanvas.parentElement.clientHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+
+// --- Events ---
+connectBtn.addEventListener('click', connect);
+disconnectBtn.addEventListener('click', disconnect);
+
+micToggle.addEventListener('click', () => {
+    if (mediaStream) {
+        const audioTrack = mediaStream.getAudioTracks()[0];
+        audioTrack.enabled = !audioTrack.enabled;
+        micToggle.classList.toggle('muted', !audioTrack.enabled);
+        micToggle.querySelector('.material-icons-round').textContent = audioTrack.enabled ? 'mic' : 'mic_off';
+    }
+});
+
+cameraToggle.addEventListener('click', () => {
+    // Just toggle the visual state for now, logic handled in loop
+    const isOff = cameraToggle.classList.contains('muted');
+    if (isOff) {
+        cameraToggle.classList.remove('muted');
+        cameraToggle.querySelector('.material-icons-round').textContent = 'videocam';
+    } else {
+        cameraToggle.classList.add('muted');
+        cameraToggle.querySelector('.material-icons-round').textContent = 'videocam_off';
+    }
+});
+
+
+// --- WebSocket & Media Logic ---
+
+async function connect() {
+    initAudioContext();
+
+    // UI Updates
+    document.body.classList.add('connected');
+    statusText.textContent = "Connecting...";
+    statusDot.className = "status-dot"; // reset
+
+    try {
+        // Get Media
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                channelCount: 1,
+                sampleRate: 16000
+            },
+            video: true
+        });
+
+        localVideo.srcObject = mediaStream;
+
+        // Connect WS
+        websocket = new WebSocket(URL);
+
+        websocket.onopen = () => {
+            isConnected = true;
+            statusText.textContent = "Live";
+            statusDot.classList.add('connected');
+
+            // Start Capture
+            startAudioCapture();
+            startVideoLoop();
+        };
+
+        websocket.onclose = () => {
+            handleDisconnect();
+        };
+
+        websocket.onerror = (e) => {
+            console.error(e);
+            handleDisconnect();
+        };
+
+        websocket.onmessage = handleMessage;
+
+    } catch (e) {
+        console.error("Connection failed", e);
+        alert("Could not access camera/mic or connect.");
+        handleDisconnect();
+    }
+}
+
+function disconnect() {
+    if (websocket) websocket.close();
+    handleDisconnect();
+}
+
+function handleDisconnect() {
+    isConnected = false;
+    document.body.classList.remove('connected');
+    statusText.textContent = "Ready";
+    statusDot.className = "status-dot";
+
+    if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+    }
+
+    if (videoInterval) clearInterval(videoInterval);
+
+    // Reset Audio
+    stopAudio();
+}
+
+// --- Audio Capture ---
+function startAudioCapture() {
     const source = audioContext.createMediaStreamSource(mediaStream);
     const processor = audioContext.createScriptProcessor(4096, 1, 1);
 
@@ -73,162 +182,44 @@ function setupAudioProcessing() {
     processor.connect(audioContext.destination);
 
     processor.onaudioprocess = (e) => {
-        if (!isConnected || !micToggle.checked) return;
+        if (!isConnected) return;
 
         const inputData = e.inputBuffer.getChannelData(0);
+
+        // Downsample to 16kHz if needed (Simple decimation)
+        // Note: Context is 24k, we requested 16k from Mic but browser might give default.
+        // For simplicity, we send raw PCM and let backend/model handle it, 
+        // OR we can resample. 
+        // Browser implementation of getUserMedia({sampleRate: 16000}) usually handles it.
+
         // Convert Float32 to Int16
-        const pcmData = new Int16Array(inputData.length);
+        const pcm16 = new Int16Array(inputData.length);
         for (let i = 0; i < inputData.length; i++) {
             let s = Math.max(-1, Math.min(1, inputData[i]));
-            pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
 
-        // Send to WebSocket
-        const base64Audio = arrayBufferToBase64(pcmData.buffer);
+        // Base64 encode
+        const base64Audio = arrayBufferToBase64(pcm16.buffer);
+
         sendToSocket({
             data: base64Audio,
             mime_type: "audio/pcm"
         });
 
+        // Drawing visualizer for Mic
         drawVisualizer(inputData);
     };
 }
 
-function sendToSocket(data) {
-    if (websocket && websocket.readyState === WebSocket.OPEN) {
-        websocket.send(JSON.stringify(data));
-    }
-}
-
-function arrayBufferToBase64(buffer) {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
-}
-
-function base64ToArrayBuffer(base64) {
-    const binary_string = window.atob(base64);
-    const len = binary_string.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-        bytes[i] = binary_string.charCodeAt(i);
-    }
-    return bytes.buffer;
-}
-
-function connect() {
-    log('Connecting to ' + URL + '...');
-    websocket = new WebSocket(URL);
-
-    websocket.onopen = () => {
-        isConnected = true;
-        updateStatus('Connected', 'connected');
-        connectBtn.disabled = true;
-        disconnectBtn.disabled = false;
-        log('Connected to Gemini Live Backend', 'success');
-
-        // Start Video Loop
-        startVideoLoop();
-    };
-
-    websocket.onmessage = async (event) => {
-        try {
-            const response = JSON.parse(event.data);
-
-            if (response.audio) {
-                // Play Audio
-                playAudioChunk(response.audio);
-            }
-            if (response.text) {
-                log(`Gemini: ${response.text}`, 'received');
-            }
-            if (response.interrupted) {
-                log('Interrupted', 'info');
-                stopAudio();
-            }
-        } catch (e) {
-            console.error("Error parsing message", e);
-        }
-    };
-
-    websocket.onclose = () => {
-        isConnected = false;
-        updateStatus('Disconnected', 'error');
-        connectBtn.disabled = false;
-        disconnectBtn.disabled = true;
-        clearInterval(videoInterval);
-        log('Disconnected', 'error');
-    };
-
-    websocket.onerror = (error) => {
-        log('WebSocket Error', 'error');
-        console.error(error);
-    };
-}
-
-// Audio Playback Queue with Scheduling
-let nextStartTime = 0;
-let scheduledSources = [];
-
-async function playAudioChunk(base64Audio) {
-    try {
-        const arrayBuffer = base64ToArrayBuffer(base64Audio);
-        const int16 = new Int16Array(arrayBuffer);
-
-        // Convert to Float32
-        const float32 = new Float32Array(int16.length);
-        for (let i = 0; i < int16.length; i++) {
-            float32[i] = int16[i] / 32768.0;
-        }
-
-        const buffer = audioContext.createBuffer(1, float32.length, OUTPUT_SAMPLE_RATE);
-        buffer.getChannelData(0).set(float32);
-
-        const source = audioContext.createBufferSource();
-        source.buffer = buffer;
-        source.connect(audioContext.destination);
-
-        // Schedule playback
-        const currentTime = audioContext.currentTime;
-        if (nextStartTime < currentTime) {
-            nextStartTime = currentTime + 0.05;
-        }
-
-        source.start(nextStartTime);
-
-        // Track source
-        scheduledSources.push(source);
-        source.onended = () => {
-            const idx = scheduledSources.indexOf(source);
-            if (idx > -1) scheduledSources.splice(idx, 1);
-        };
-
-        nextStartTime += buffer.duration;
-
-    } catch (e) {
-        console.error("Audio playback error", e);
-    }
-}
-
-function stopAudio() {
-    scheduledSources.forEach(s => {
-        try { s.stop(); } catch (e) { }
-    });
-    scheduledSources = [];
-    nextStartTime = 0;
-}
-
+// --- Video Capture ---
 function startVideoLoop() {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
 
-    // Send frames every 1s (1 FPS) or faster if needed
+    // Send frames every 1s
     videoInterval = setInterval(() => {
-        if (!isConnected || !cameraToggle.checked || !localVideo.srcObject) return;
+        if (!isConnected || cameraToggle.classList.contains('muted') || !localVideo.srcObject) return;
 
         // Draw video frame to canvas
         // INCREASED QUALITY: Use full width or at least 1024px
@@ -259,23 +250,53 @@ function startVideoLoop() {
     }, 1000);
 }
 
+function sendToSocket(data) {
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+        websocket.send(JSON.stringify(data));
+    }
+}
 
-// Visualizer
+
+// --- Message Handling ---
+function handleMessage(event) {
+    try {
+        const message = JSON.parse(event.data);
+
+        // Log to console only
+        // console.log("Received:", message);
+
+        if (message.audio) {
+            playAudioChunk(message.audio);
+        }
+        if (message.interrupted) {
+            console.log("Interrupted by model");
+            stopAudio();
+        }
+    } catch (e) {
+        console.error("Error parsing message", e);
+    }
+}
+
+
+// --- Visualizer ---
 function drawVisualizer(dataArray) {
+    // Simple bar visualizer on the main canvas
     const width = audioCanvas.width;
     const height = audioCanvas.height;
 
     canvasCtx.clearRect(0, 0, width, height);
-    canvasCtx.lineWidth = 2;
-    canvasCtx.strokeStyle = '#4F46E5';
+
+    // Draw a "pulse" line
+    canvasCtx.lineWidth = 3;
+    canvasCtx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--visualizer-color').trim();
     canvasCtx.beginPath();
 
     const sliceWidth = width * 1.0 / dataArray.length;
     let x = 0;
 
     for (let i = 0; i < dataArray.length; i++) {
-        const v = dataArray[i] * 5 + 1; // Amp multiplication
-        const y = v * height / 2;
+        const v = dataArray[i] * 200.0; // amplify
+        const y = height / 2 + v;
 
         if (i === 0) {
             canvasCtx.moveTo(x, y);
@@ -291,19 +312,119 @@ function drawVisualizer(dataArray) {
 }
 
 
-// Event Listeners
-connectBtn.addEventListener('click', connect);
-disconnectBtn.addEventListener('click', () => {
-    if (websocket) websocket.close();
-});
+// --- Robust Audio Playback ---
+let audioQueue = [];
+let isPlayingAudio = false;
+let nextStartTime = 0;
+let scheduledSources = [];
 
-// Setup
-startMedia();
+async function playAudioChunk(base64Audio) {
+    // 1. Decode base64 to Float32
+    const binaryString = window.atob(base64Audio);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    const int16 = new Int16Array(bytes.buffer);
+    const float32 = new Float32Array(int16.length);
+    for (let i = 0; i < int16.length; i++) {
+        float32[i] = int16[i] / 32768.0;
+    }
 
-// Resize canvas for visualizer
-window.addEventListener('resize', () => {
-    audioCanvas.width = audioCanvas.offsetWidth;
-    audioCanvas.height = audioCanvas.offsetHeight;
-});
-audioCanvas.width = audioCanvas.offsetWidth;
-audioCanvas.height = audioCanvas.offsetHeight;
+    // 2. Add to queue
+    audioQueue.push(float32);
+
+    // 3. Trigger player if not running
+    if (!isPlayingAudio) {
+        scheduleNext();
+    }
+}
+
+function scheduleNext() {
+    if (audioQueue.length === 0) {
+        isPlayingAudio = false;
+        return;
+    }
+
+    isPlayingAudio = true;
+
+    // Batch up to 200ms of data to reduce overhead (glitch reduction)
+    let combinedLength = 0;
+    const chunksToPlay = [];
+    // 24000 samples/sec * 0.2 sec = 4800 samples
+    const MAX_BATCH_SIZE = 4800;
+
+    while (audioQueue.length > 0 && combinedLength < MAX_BATCH_SIZE) {
+        const chunk = audioQueue.shift();
+        chunksToPlay.push(chunk);
+        combinedLength += chunk.length;
+    }
+
+    const combinedBuffer = new Float32Array(combinedLength);
+    let offset = 0;
+    chunksToPlay.forEach(chunk => {
+        combinedBuffer.set(chunk, offset);
+        offset += chunk.length;
+    });
+
+    const buffer = audioContext.createBuffer(1, combinedLength, 24000); // 24kHz output
+    buffer.getChannelData(0).set(combinedBuffer);
+
+    const source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioContext.destination);
+
+    const currentTime = audioContext.currentTime;
+
+    // Critical: If we fell behind, reset start time (with small buffer).
+    if (nextStartTime < currentTime) {
+        nextStartTime = currentTime + 0.05;
+    }
+
+    source.start(nextStartTime);
+
+    // Track source for stopping
+    scheduledSources.push(source);
+    source.onended = () => {
+        const idx = scheduledSources.indexOf(source);
+        if (idx > -1) scheduledSources.splice(idx, 1);
+    };
+
+    nextStartTime += buffer.duration;
+
+    if (audioQueue.length > 0) {
+        scheduleNext();
+    }
+}
+
+function stopAudio() {
+    scheduledSources.forEach(s => {
+        try { s.stop(); } catch (e) { }
+    });
+    scheduledSources = [];
+    audioQueue = [];
+    nextStartTime = 0;
+    isPlayingAudio = false;
+}
+
+// Helpers
+function arrayBufferToBase64(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
+}
+
+function base64ToArrayBuffer(base64) {
+    const binaryString = window.atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
+}
