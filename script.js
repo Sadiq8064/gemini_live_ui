@@ -1,7 +1,7 @@
 
 const URL = "wss://gemini-live-api-f0vo.onrender.com/ws";
 
-const localVideo = document.getElementById('localVideo');
+
 let websocket = null;
 let isConnected = false;
 let audioContext = null;
@@ -101,7 +101,13 @@ cameraToggle.addEventListener('click', () => {
 // --- WebSocket & Media Logic ---
 
 async function connect() {
-    initAudioContext();
+    console.log("Connect button clicked");
+    try {
+        initAudioContext();
+    } catch (e) {
+        console.error("Audio Context Error", e);
+        alert("Audio Context Error: " + e.message);
+    }
 
     // UI Updates
     document.body.classList.add('connected');
