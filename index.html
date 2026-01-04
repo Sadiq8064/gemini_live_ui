@@ -1,71 +1,70 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pulse AI</title>
-    <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css">
-
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
-
-    <!-- Material Icons for Buttons -->
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiveAI</title>
+<style>
+html,body{margin:0;height:100%;background:black;font-family:system-ui}
+#video{position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover}
+#bar{
+position:fixed;bottom:30px;left:50%;transform:translateX(-50%);
+display:flex;gap:16px;background:rgba(0,0,0,.65);padding:18px 30px;
+border-radius:50px;backdrop-filter:blur(20px)
+}
+.btn{width:56px;height:56px;border-radius:50%;border:none;
+display:flex;align-items:center;justify-content:center;font-size:22px;color:white}
+.red{background:#ff3b30}.gray{background:#444}.green{background:#34c759}
+</style>
 </head>
-
 <body>
 
-    <!-- Main Content Area -->
-    <main class="app-container">
+<video id="video" autoplay muted playsinline></video>
 
-        <!-- Theme Toggle -->
-        <button id="theme-toggle" class="icon-btn theme-btn">
-            <span class="material-icons-round">dark_mode</span>
-        </button>
+<div id="bar">
+<button class="btn gray" onclick="toggleMic()">🎤</button>
+<button class="btn gray" onclick="toggleCam()">📷</button>
+<button class="btn green" onclick="startCall()">📞</button>
+<button class="btn red" onclick="endCall()">✕</button>
+</div>
 
-        <!-- Main Visualizer (The AI Persona) -->
-        <div class="visualizer-container">
-            <canvas id="audio-canvas"></canvas>
-            <div class="status-pill" id="connection-status">
-                <span class="status-dot"></span>
-                <span class="status-text">Ready</span>
-            </div>
-        </div>
+<script>
+let ws,stream,mediaRecorder,audioQueue=[]
+const video=document.getElementById("video")
 
-        <!-- User Video (Floating PiP) -->
-        <div class="user-video-container">
-            <video id="local-video" autoplay playsinline muted></video>
-        </div>
+async function startCall(){
+stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true})
+video.srcObject=stream
 
-        <!-- Floating Controls Bar -->
-        <div class="controls-bar">
-            <!-- Cam Toggle -->
-            <button id="camera-toggle" class="control-btn active">
-                <span class="material-icons-round">videocam</span>
-            </button>
+ws=new WebSocket("wss://gemini-live-api-f0vo.onrender.com/ws")
 
-            <!-- Connect/Disconnect (Call Action) -->
-            <button id="connect-btn" class="control-btn call-btn">
-                <span class="material-icons-round">call</span>
-            </button>
+const audioCtx=new AudioContext()
+const src=audioCtx.createMediaStreamSource(stream)
+const processor=audioCtx.createScriptProcessor(4096,1,1)
+src.connect(processor);processor.connect(audioCtx.destination)
 
-            <button id="disconnect-btn" class="control-btn hangup-btn" disabled>
-                <span class="material-icons-round">call_end</span>
-            </button>
+processor.onaudioprocess=e=>{
+let data=e.inputBuffer.getChannelData(0)
+let pcm=new Int16Array(data.length)
+for(let i=0;i<data.length;i++)pcm[i]=data[i]*32767
+let b64=btoa(String.fromCharCode(...new Uint8Array(pcm.buffer)))
+ws.send(JSON.stringify({data:b64,mime_type:"audio/pcm"}))
+}
 
-            <!-- Mic Toggle -->
-            <button id="mic-toggle" class="control-btn active">
-                <span class="material-icons-round">mic</span>
-            </button>
-        </div>
+ws.onmessage=e=>{
+const msg=JSON.parse(e.data)
+if(msg.audio){
+const bytes=Uint8Array.from(atob(msg.audio),c=>c.charCodeAt(0))
+audioCtx.decodeAudioData(bytes.buffer).then(b=>{
+const s=audioCtx.createBufferSource()
+s.buffer=b;s.connect(audioCtx.destination);s.start()
+})
+}}
+}
 
-        <div style="position:absolute; bottom:10px; right:10px; opacity:0.3; font-size:10px; color: var(--text-color);">
-            v2.0 (Force Update)</div>
-    </main>
-
-    <script src="script.js"></script>
+function toggleMic(){stream.getAudioTracks()[0].enabled^=1}
+function toggleCam(){stream.getVideoTracks()[0].enabled^=1}
+function endCall(){location.reload()}
+</script>
 </body>
-
 </html>
