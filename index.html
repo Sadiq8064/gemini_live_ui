@@ -3,25 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemini Live API Tester</title>
-    <!-- Google Fonts for premium feel -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <title>Gemini Live</title>
     <style>
-        :root {
-            --bg-color: #0F1014;
-            --card-bg: #18191E;
-            --text-primary: #FFFFFF;
-            --text-secondary: #9CA3AF;
-            --accent-color: #4F46E5;
-            --accent-glow: rgba(79, 70, 229, 0.4);
-            --danger-color: #EF4444;
-            --success-color: #10B981;
-            --font-heading: 'Clash Display', sans-serif;
-            --font-body: 'Inter', sans-serif;
-        }
-
         * {
             box-sizing: border-box;
             margin: 0;
@@ -29,113 +12,27 @@
         }
 
         body {
-            background-color: var(--bg-color);
-            color: var(--text-primary);
-            font-family: var(--font-body);
+            background-color: #000000;
+            color: #FFFFFF;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
             overflow: hidden;
         }
 
         .app-container {
             width: 100%;
-            max-width: 1000px;
-            height: 90vh;
-            background: var(--card-bg);
-            border-radius: 24px;
-            padding: 2rem;
-            box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.5);
+            height: 100vh;
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        h1 {
-            font-family: var(--font-heading);
-            font-size: 1.75rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .badge {
-            font-size: 0.75rem;
-            background: rgba(255, 255, 255, 0.1);
-            padding: 0.2rem 0.6rem;
-            border-radius: 99px;
-            color: var(--text-secondary);
-        }
-
-        .status {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .status::before {
-            content: '';
-            display: block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: var(--text-secondary);
-        }
-
-        .status.connected {
-            color: var(--success-color);
-        }
-
-        .status.connected::before {
-            background-color: var(--success-color);
-            box-shadow: 0 0 10px var(--success-color);
-        }
-
-        .status.error {
-            color: var(--danger-color);
-        }
-
-        .status.error::before {
-            background-color: var(--danger-color);
-        }
-
-        main {
-            display: grid;
-            grid-template-columns: 1fr 300px;
-            gap: 2rem;
-            flex: 1;
-            min-height: 0;
-        }
-
-        .media-container {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-            align-items: center;
-            justify-content: center;
+            position: relative;
         }
 
         .video-wrapper {
             position: relative;
             width: 100%;
-            max-width: 640px;
-            aspect-ratio: 16/9;
+            height: 100%;
             background: #000;
-            border-radius: 16px;
             overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
         }
 
         video {
@@ -143,210 +40,157 @@
             height: 100%;
             object-fit: cover;
             transform: scaleX(-1);
-            /* Mirror effect */
         }
 
-        .visualizer-overlay {
+        .status-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 10;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #6B7280;
+            transition: all 0.3s ease;
+        }
+
+        .status-indicator.connected .status-dot {
+            background-color: #10B981;
+            box-shadow: 0 0 8px #10B981;
+        }
+
+        .controls-overlay {
             position: absolute;
             bottom: 0;
             left: 0;
-            width: 100%;
-            height: 60px;
-            background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
-            pointer-events: none;
-        }
-
-        canvas#audioVisualizer {
-            width: 100%;
-            height: 100%;
-        }
-
-        .controls {
+            right: 0;
+            padding: 30px;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, transparent 100%);
             display: flex;
-            gap: 1rem;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 10;
         }
 
-        .btn {
-            appearance: none;
+        .control-btn {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
             border: none;
-            padding: 0.8rem 2rem;
-            border-radius: 12px;
-            font-family: var(--font-body);
-            font-weight: 600;
-            font-size: 1rem;
             cursor: pointer;
-            transition: all 0.2s ease;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            justify-content: center;
+            font-size: 24px;
+            transition: all 0.2s ease;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            color: white;
         }
 
-        .btn:disabled {
+        .control-btn:hover:not(:disabled) {
+            transform: scale(1.1);
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .control-btn:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+
+        .control-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
 
-        .btn.primary {
-            background: var(--accent-color);
-            color: white;
-            box-shadow: 0 4px 20px var(--accent-glow);
+        .control-btn.primary {
+            background: #10B981;
+            width: 64px;
+            height: 64px;
         }
 
-        .btn.primary:not(:disabled):hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px var(--accent-glow);
+        .control-btn.primary:hover:not(:disabled) {
+            background: #059669;
         }
 
-        .btn.danger {
-            background: rgba(239, 68, 68, 0.1);
-            color: var(--danger-color);
-            border: 1px solid rgba(239, 68, 68, 0.2);
+        .control-btn.danger {
+            background: #EF4444;
         }
 
-        .btn.danger:not(:disabled):hover {
-            background: rgba(239, 68, 68, 0.2);
+        .control-btn.danger:hover:not(:disabled) {
+            background: #DC2626;
         }
 
-        .media-toggles {
-            display: flex;
-            gap: 1.5rem;
+        .control-btn.muted {
+            background: rgba(239, 68, 68, 0.3);
         }
 
-        .toggle {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            cursor: pointer;
-            color: var(--text-secondary);
-            font-size: 0.9rem;
+        .control-btn.disabled-cam {
+            background: rgba(239, 68, 68, 0.3);
         }
 
-        .toggle input {
-            display: none;
-        }
+        @media (max-width: 768px) {
+            .controls-overlay {
+                padding: 20px 15px;
+                gap: 15px;
+            }
 
-        .slider {
-            width: 40px;
-            height: 20px;
-            background-color: rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            position: relative;
-            transition: 0.3s;
-        }
+            .control-btn {
+                width: 48px;
+                height: 48px;
+                font-size: 20px;
+            }
 
-        .slider::before {
-            content: "";
-            position: absolute;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: white;
-            top: 2px;
-            left: 2px;
-            transition: 0.3s;
-        }
+            .control-btn.primary {
+                width: 56px;
+                height: 56px;
+            }
 
-        .toggle input:checked+.slider {
-            background-color: var(--accent-color);
-        }
-
-        .toggle input:checked+.slider::before {
-            transform: translateX(20px);
-        }
-
-        .logs-container {
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 16px;
-            padding: 1rem;
-            display: flex;
-            flex-direction: column;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            max-height: 100%;
-            /* Force it to respect parent height */
-            overflow: hidden;
-            /* Ensure content doesn't spill out */
-        }
-
-        .logs-container h3 {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            margin-bottom: 0.5rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .logs {
-            flex: 1;
-            overflow-y: auto;
-            font-family: monospace;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
-        }
-
-        .log-entry {
-            word-break: break-all;
-        }
-
-        .log-entry.sent {
-            color: #60A5FA;
-        }
-
-        .log-entry.received {
-            color: #34D399;
-        }
-
-        .log-entry.error {
-            color: #F87171;
+            .status-indicator {
+                top: 15px;
+                right: 15px;
+                font-size: 0.75rem;
+                padding: 6px 12px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="app-container">
-        <header>
-            <h1>Gemini Live <span class="badge">TESTER</span></h1>
-            <p class="status" id="connectionStatus">Disconnected</p>
-        </header>
-
-        <main>
-            <div class="media-container">
-                <div class="video-wrapper">
-                    <video id="localVideo" autoplay playsinline muted></video>
-                    <div class="visualizer-overlay">
-                        <canvas id="audioVisualizer"></canvas>
-                    </div>
-                </div>
-                
-                <div class="controls">
-                    <button id="connectBtn" class="btn primary">
-                        <span class="icon">⚡</span> Connect
-                    </button>
-                    <button id="disconnectBtn" class="btn danger" disabled>
-                        <span class="icon">✕</span> Stop
-                    </button>
-                </div>
-                
-                <div class="media-toggles">
-                    <label class="toggle">
-                        <input type="checkbox" id="cameraToggle" checked>
-                        <span class="slider"></span>
-                        <span class="label">Camera</span>
-                    </label>
-                    <label class="toggle">
-                        <input type="checkbox" id="micToggle" checked>
-                        <span class="slider"></span>
-                        <span class="label">Mic</span>
-                    </label>
-                </div>
+        <div class="video-wrapper">
+            <video id="localVideo" autoplay playsinline muted></video>
+            
+            <div class="status-indicator" id="connectionStatus">
+                <div class="status-dot"></div>
+                <span>Disconnected</span>
             </div>
 
-            <div class="logs-container">
-                <h3>Session Logs</h3>
-                <div id="logs" class="logs"></div>
+            <div class="controls-overlay">
+                <button id="cameraToggle" class="control-btn" title="Toggle Camera">
+                    📹
+                </button>
+                <button id="connectBtn" class="control-btn primary" title="Connect">
+                    📞
+                </button>
+                <button id="disconnectBtn" class="control-btn danger" disabled title="Disconnect">
+                    ✕
+                </button>
+                <button id="micToggle" class="control-btn" title="Toggle Microphone">
+                    🎤
+                </button>
             </div>
-        </main>
+        </div>
     </div>
 
     <script>
@@ -356,11 +200,8 @@
         const connectBtn = document.getElementById('connectBtn');
         const disconnectBtn = document.getElementById('disconnectBtn');
         const connectionStatus = document.getElementById('connectionStatus');
-        const logs = document.getElementById('logs');
         const cameraToggle = document.getElementById('cameraToggle');
         const micToggle = document.getElementById('micToggle');
-        const audioCanvas = document.getElementById('audioVisualizer');
-        const canvasCtx = audioCanvas.getContext('2d');
 
         let websocket;
         let mediaStream;
@@ -368,25 +209,20 @@
         let audioProcessor;
         let videoInterval;
         let isConnected = false;
+        let isCameraOn = true;
+        let isMicOn = true;
 
-        // Audio Configuration
-        // Gemini supports 16kHz input. We'll try to get that from the browser or downsample.
         const INPUT_SAMPLE_RATE = 16000;
-        const OUTPUT_SAMPLE_RATE = 24000; // Gemini Flash Live Native Audio preview outputs 24kHz
+        const OUTPUT_SAMPLE_RATE = 24000;
 
-        // Logging utility
-        function log(message, type = 'info') {
-            const entry = document.createElement('div');
-            entry.className = `log-entry ${type}`;
-            const time = new Date().toLocaleTimeString();
-            entry.textContent = `[${time}] ${message}`;
-            logs.appendChild(entry);
-            logs.scrollTop = logs.scrollHeight;
-        }
-
-        function updateStatus(status, className) {
-            connectionStatus.textContent = status;
-            connectionStatus.className = `status ${className}`;
+        function updateStatus(status, isConnected) {
+            const statusText = connectionStatus.querySelector('span');
+            statusText.textContent = status;
+            if (isConnected) {
+                connectionStatus.classList.add('connected');
+            } else {
+                connectionStatus.classList.remove('connected');
+            }
         }
 
         async function startMedia() {
@@ -407,15 +243,11 @@
                 localVideo.srcObject = mediaStream;
                 setupAudioProcessing();
             } catch (err) {
-                log(`Media Error: ${err.message}`, 'error');
-                console.error(err);
+                console.error('Media Error:', err);
             }
         }
 
         function setupAudioProcessing() {
-            // Input Audio Code
-            // We used a deprecated ScriptProcessor for simplicity in a single file vs AudioWorklet
-            // Ideally use AudioWorklet for production
             audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: INPUT_SAMPLE_RATE });
             const source = audioContext.createMediaStreamSource(mediaStream);
             const processor = audioContext.createScriptProcessor(4096, 1, 1);
@@ -424,24 +256,20 @@
             processor.connect(audioContext.destination);
 
             processor.onaudioprocess = (e) => {
-                if (!isConnected || !micToggle.checked) return;
+                if (!isConnected || !isMicOn) return;
 
                 const inputData = e.inputBuffer.getChannelData(0);
-                // Convert Float32 to Int16
                 const pcmData = new Int16Array(inputData.length);
                 for (let i = 0; i < inputData.length; i++) {
                     let s = Math.max(-1, Math.min(1, inputData[i]));
                     pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                 }
 
-                // Send to WebSocket
                 const base64Audio = arrayBufferToBase64(pcmData.buffer);
                 sendToSocket({
                     data: base64Audio,
                     mime_type: "audio/pcm"
                 });
-
-                drawVisualizer(inputData);
             };
         }
 
@@ -472,17 +300,13 @@
         }
 
         function connect() {
-            log('Connecting to ' + URL + '...');
             websocket = new WebSocket(URL);
 
             websocket.onopen = () => {
                 isConnected = true;
-                updateStatus('Connected', 'connected');
+                updateStatus('Connected', true);
                 connectBtn.disabled = true;
                 disconnectBtn.disabled = false;
-                log('Connected to Gemini Live Backend', 'success');
-
-                // Start Video Loop
                 startVideoLoop();
             };
 
@@ -491,14 +315,9 @@
                     const response = JSON.parse(event.data);
 
                     if (response.audio) {
-                        // Play Audio
                         playAudioChunk(response.audio);
                     }
-                    if (response.text) {
-                        log(`Gemini: ${response.text}`, 'received');
-                    }
                     if (response.interrupted) {
-                        log('Interrupted', 'info');
                         stopAudio();
                     }
                 } catch (e) {
@@ -508,20 +327,17 @@
 
             websocket.onclose = () => {
                 isConnected = false;
-                updateStatus('Disconnected', 'error');
+                updateStatus('Disconnected', false);
                 connectBtn.disabled = false;
                 disconnectBtn.disabled = true;
                 clearInterval(videoInterval);
-                log('Disconnected', 'error');
             };
 
             websocket.onerror = (error) => {
-                log('WebSocket Error', 'error');
-                console.error(error);
+                console.error('WebSocket Error:', error);
             };
         }
 
-        // Audio Playback Queue with Scheduling
         let nextStartTime = 0;
         let scheduledSources = [];
 
@@ -530,7 +346,6 @@
                 const arrayBuffer = base64ToArrayBuffer(base64Audio);
                 const int16 = new Int16Array(arrayBuffer);
 
-                // Convert to Float32
                 const float32 = new Float32Array(int16.length);
                 for (let i = 0; i < int16.length; i++) {
                     float32[i] = int16[i] / 32768.0;
@@ -543,7 +358,6 @@
                 source.buffer = buffer;
                 source.connect(audioContext.destination);
 
-                // Schedule playback
                 const currentTime = audioContext.currentTime;
                 if (nextStartTime < currentTime) {
                     nextStartTime = currentTime + 0.05;
@@ -551,7 +365,6 @@
 
                 source.start(nextStartTime);
 
-                // Track source
                 scheduledSources.push(source);
                 source.onended = () => {
                     const idx = scheduledSources.indexOf(source);
@@ -577,16 +390,12 @@
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
 
-            // Send frames every 1s (1 FPS) or faster if needed
             videoInterval = setInterval(() => {
-                if (!isConnected || !cameraToggle.checked || !localVideo.srcObject) return;
+                if (!isConnected || !isCameraOn || !localVideo.srcObject) return;
 
-                // Draw video frame to canvas
-                // INCREASED QUALITY: Use full width or at least 1024px
                 const originalWidth = localVideo.videoWidth || 640;
                 const originalHeight = localVideo.videoHeight || 360;
 
-                // Target at least 1024px width for better legibility
                 const targetWidth = 1024;
                 const scale = Math.min(1, targetWidth / originalWidth);
 
@@ -598,7 +407,6 @@
 
                 ctx.drawImage(localVideo, 0, 0, w, h);
 
-                // Get Base64 with Higher Quality (0.9)
                 const dataURL = canvas.toDataURL('image/jpeg', 0.9);
                 const base64Data = dataURL.split(',')[1];
 
@@ -610,52 +418,32 @@
             }, 1000);
         }
 
-        // Visualizer
-        function drawVisualizer(dataArray) {
-            const width = audioCanvas.width;
-            const height = audioCanvas.height;
-
-            canvasCtx.clearRect(0, 0, width, height);
-            canvasCtx.lineWidth = 2;
-            canvasCtx.strokeStyle = '#4F46E5';
-            canvasCtx.beginPath();
-
-            const sliceWidth = width * 1.0 / dataArray.length;
-            let x = 0;
-
-            for (let i = 0; i < dataArray.length; i++) {
-                const v = dataArray[i] * 5 + 1; // Amp multiplication
-                const y = v * height / 2;
-
-                if (i === 0) {
-                    canvasCtx.moveTo(x, y);
-                } else {
-                    canvasCtx.lineTo(x, y);
-                }
-
-                x += sliceWidth;
-            }
-
-            canvasCtx.lineTo(audioCanvas.width, audioCanvas.height / 2);
-            canvasCtx.stroke();
-        }
-
         // Event Listeners
         connectBtn.addEventListener('click', connect);
+        
         disconnectBtn.addEventListener('click', () => {
             if (websocket) websocket.close();
         });
 
-        // Setup
-        startMedia();
-
-        // Resize canvas for visualizer
-        window.addEventListener('resize', () => {
-            audioCanvas.width = audioCanvas.offsetWidth;
-            audioCanvas.height = audioCanvas.offsetHeight;
+        cameraToggle.addEventListener('click', () => {
+            isCameraOn = !isCameraOn;
+            const videoTrack = mediaStream.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.enabled = isCameraOn;
+            }
+            cameraToggle.classList.toggle('disabled-cam', !isCameraOn);
         });
-        audioCanvas.width = audioCanvas.offsetWidth;
-        audioCanvas.height = audioCanvas.offsetHeight;
+
+        micToggle.addEventListener('click', () => {
+            isMicOn = !isMicOn;
+            const audioTrack = mediaStream.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.enabled = isMicOn;
+            }
+            micToggle.classList.toggle('muted', !isMicOn);
+        });
+
+        startMedia();
     </script>
 </body>
 </html>
